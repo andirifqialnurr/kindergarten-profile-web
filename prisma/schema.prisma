@@ -106,3 +106,12 @@ model Analytics {
   location  String?
   createdAt DateTime @default(now())
 }
+
+// Model untuk Pengaturan/Settings
+model Settings {
+  id                    String   @id @default(cuid())
+  key                   String   @unique
+  value                 String
+  description           String?
+  updatedAt             DateTime @updatedAt
+}

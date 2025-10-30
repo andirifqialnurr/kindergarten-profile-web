@@ -13,7 +13,8 @@ import {
   Menu,
   ChevronLeft,
   ChevronRight,
-  User
+  User,
+  Users
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import {
@@ -44,6 +45,11 @@ const sidebarItems = [
   {
     title: 'Manajemen',
     href: '/dashboard/manajemen',
+    icon: Users,
+  },
+  {
+    title: 'Pengaturan',
+    href: '/dashboard/pengaturan',
     icon: Settings,
   },
 ]

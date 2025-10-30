@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -33,6 +33,8 @@ type FormValues = z.infer<typeof formSchema>
 export default function PendaftaranPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [whatsappNumber, setWhatsappNumber] = useState('6281234567890')
+  const [whatsappTemplate, setWhatsappTemplate] = useState('')
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -46,6 +48,29 @@ export default function PendaftaranPage() {
     },
   })
 
+  // Fetch settings from database
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings')
+        if (!res.ok) return
+        
+        const settings = await res.json()
+        
+        if (settings.whatsapp_number) {
+          setWhatsappNumber(settings.whatsapp_number.value)
+        }
+        if (settings.whatsapp_template) {
+          setWhatsappTemplate(settings.whatsapp_template.value)
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error)
+      }
+    }
+    
+    fetchSettings()
+  }, [])
+
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true)
     
@@ -56,8 +81,8 @@ export default function PendaftaranPage() {
       //   body: JSON.stringify(values),
       // })
 
-      // Buat pesan WhatsApp
-      const whatsappMessage = `
+      // Buat pesan WhatsApp menggunakan template dari database
+      let whatsappMessage = whatsappTemplate || `
 *PENDAFTARAN BARU - Zivana Montessori School*
 
 *Nama Anak:* ${values.childName}
@@ -70,10 +95,18 @@ ${values.message ? `*Pesan:* ${values.message}` : ''}
 Terima kasih telah mendaftar di Zivana Montessori School!
       `.trim()
 
-      // Nomor WhatsApp sekolah (ganti dengan nomor yang sebenarnya)
-      const phoneNumber = '6281234567890' // Format: 62xxx (tanpa +)
+      // Replace placeholders dengan data form
+      whatsappMessage = whatsappMessage
+        .replace('{childName}', values.childName)
+        .replace('{parentName}', values.parentName)
+        .replace('{email}', values.email)
+        .replace('{phone}', values.phone)
+        .replace('{address}', values.address ? `*Alamat:* ${values.address}` : '')
+        .replace('{message}', values.message ? `*Pesan:* ${values.message}` : '')
+        .trim()
+
       const encodedMessage = encodeURIComponent(whatsappMessage)
-      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`
+      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`
 
       // Redirect ke WhatsApp
       window.open(whatsappUrl, '_blank')
