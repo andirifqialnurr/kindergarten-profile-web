@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Model untuk Program Sekolah
+model Program {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  images      Image[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Model untuk Gambar Dokumentasi
+model Image {
+  id        String   @id @default(cuid())
+  url       String
+  caption   String?
+  programId String
+  program   Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+// Model untuk Artikel/Berita
+model Article {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  imageUrl  String?
+  author    String
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Model untuk Karyawan
+model Employee {
+  id       String       @id @default(cuid())
+  name     String
+  position String
+  imageUrl String?
+  level    EmployeeLevel
+  order    Int          @default(0)
+}
+
+enum EmployeeLevel {
+  PIMPINAN
+  TENAGA_KEPENDIDIKAN
+  TENAGA_PENDIDIK
+  TENAGA_OPERASIONAL
+}
+
+// Model untuk Jadwal Sekolah
+model Schedule {
+  id       String @id @default(cuid())
+  time     String
+  activity String
+  order    Int    @default(0)
+}
+
+// Model untuk Penghargaan
+model Award {
+  id       String   @id @default(cuid())
+  title    String
+  imageUrl String
+  year     Int?
+  order    Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// Model untuk Social Media
+model SocialMedia {
+  id       String @id @default(cuid())
+  platform String
+  username String
+  url      String
+}
+
+// Model untuk Pendaftaran
+model Registration {
+  id            String   @id @default(cuid())
+  childName     String
+  parentName    String
+  email         String
+  phone         String
+  address       String?
+  message       String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+}
+
+// Model untuk Analytics
+model Analytics {
+  id        String   @id @default(cuid())
+  path      String
+  device    String?
+  location  String?
+  createdAt DateTime @default(now())
+}
