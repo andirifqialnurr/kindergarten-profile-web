@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, Save, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
+import FormFieldsManager from '@/components/FormFieldsManager'
 import {
   Tabs,
   TabsContent,
@@ -59,18 +60,25 @@ export default function PengaturanPage() {
     try {
       setLoading(true)
       const res = await fetch('/api/settings')
-      if (!res.ok) throw new Error('Failed to fetch')
+      if (!res.ok) {
+        console.error('Failed to fetch settings:', res.status)
+        throw new Error('Failed to fetch')
+      }
       
       const settings = await res.json()
+      console.log('Fetched settings:', settings)
       
       if (settings.whatsapp_number) {
         setWhatsappNumber(settings.whatsapp_number.value)
+        console.log('WhatsApp Number loaded:', settings.whatsapp_number.value)
       }
       if (settings.whatsapp_template) {
         setWhatsappTemplate(settings.whatsapp_template.value)
+        console.log('WhatsApp Template loaded:', settings.whatsapp_template.value)
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
+      toast.error('Gagal memuat pengaturan')
     } finally {
       setLoading(false)
     }
@@ -80,8 +88,11 @@ export default function PengaturanPage() {
     try {
       setSaving(true)
       
+      console.log('Saving WhatsApp Number:', whatsappNumber)
+      console.log('Saving WhatsApp Template:', whatsappTemplate)
+      
       // Save WhatsApp number
-      await fetch('/api/settings', {
+      const res1 = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -91,8 +102,17 @@ export default function PengaturanPage() {
         })
       })
       
+      if (!res1.ok) {
+        const errorData = await res1.json()
+        console.error('Failed to save WhatsApp number:', errorData)
+        throw new Error('Failed to save WhatsApp number')
+      }
+      
+      const savedNumber = await res1.json()
+      console.log('WhatsApp number saved:', savedNumber)
+      
       // Save WhatsApp template
-      await fetch('/api/settings', {
+      const res2 = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,7 +122,19 @@ export default function PengaturanPage() {
         })
       })
       
+      if (!res2.ok) {
+        const errorData = await res2.json()
+        console.error('Failed to save WhatsApp template:', errorData)
+        throw new Error('Failed to save WhatsApp template')
+      }
+      
+      const savedTemplate = await res2.json()
+      console.log('WhatsApp template saved:', savedTemplate)
+      
       toast.success('Pengaturan berhasil disimpan')
+      
+      // Refresh data dari database
+      await fetchSettings()
     } catch (error) {
       toast.error('Gagal menyimpan pengaturan')
       console.error('Error saving settings:', error)
@@ -120,23 +152,23 @@ export default function PengaturanPage() {
   const generatePreview = () => {
     let preview = whatsappTemplate
     
-    // Replace placeholders
-    preview = preview.replace('{childName}', previewData.childName)
-    preview = preview.replace('{parentName}', previewData.parentName)
-    preview = preview.replace('{email}', previewData.email)
-    preview = preview.replace('{phone}', previewData.phone)
+    // Replace placeholders (gunakan replaceAll untuk semua kemunculan)
+    preview = preview.replaceAll('{childName}', previewData.childName)
+    preview = preview.replaceAll('{parentName}', previewData.parentName)
+    preview = preview.replaceAll('{email}', previewData.email)
+    preview = preview.replaceAll('{phone}', previewData.phone)
     
     // Handle optional fields
     if (previewData.address) {
-      preview = preview.replace('{address}', `*Alamat:* ${previewData.address}`)
+      preview = preview.replaceAll('{address}', `*Alamat:* ${previewData.address}`)
     } else {
-      preview = preview.replace('{address}', '')
+      preview = preview.replaceAll('{address}', '')
     }
     
     if (previewData.message) {
-      preview = preview.replace('{message}', `*Pesan:* ${previewData.message}`)
+      preview = preview.replaceAll('{message}', `*Pesan:* ${previewData.message}`)
     } else {
-      preview = preview.replace('{message}', '')
+      preview = preview.replaceAll('{message}', '')
     }
     
     return preview
@@ -162,6 +194,7 @@ export default function PengaturanPage() {
       <Tabs defaultValue="whatsapp" className="space-y-4">
         <TabsList>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          <TabsTrigger value="form">Form Pendaftaran</TabsTrigger>
           <TabsTrigger value="general">Umum</TabsTrigger>
         </TabsList>
 
@@ -310,6 +343,10 @@ export default function PengaturanPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="form">
+          <FormFieldsManager />
         </TabsContent>
 
         <TabsContent value="general">

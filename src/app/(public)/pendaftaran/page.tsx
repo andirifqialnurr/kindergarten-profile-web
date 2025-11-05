@@ -1,123 +1,185 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import { CheckCircle2, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
-const formSchema = z.object({
-  childName: z.string().min(2, 'Nama anak minimal 2 karakter'),
-  parentName: z.string().min(2, 'Nama orang tua minimal 2 karakter'),
-  email: z.string().email('Email tidak valid'),
-  phone: z.string().min(10, 'Nomor telepon minimal 10 digit'),
-  address: z.string().optional(),
-  message: z.string().optional(),
-})
-
-type FormValues = z.infer<typeof formSchema>
+type FormField = {
+  id: string
+  fieldName: string
+  label: string
+  placeholder: string | null
+  fieldType: string
+  required: boolean
+  enabled: boolean
+  order: number
+}
 
 export default function PendaftaranPage() {
+  const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [formFields, setFormFields] = useState<FormField[]>([])
+  const [formData, setFormData] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [whatsappNumber, setWhatsappNumber] = useState('6281234567890')
   const [whatsappTemplate, setWhatsappTemplate] = useState('')
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      childName: '',
-      parentName: '',
-      email: '',
-      phone: '',
-      address: '',
-      message: '',
-    },
-  })
-
-  // Fetch settings from database
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const res = await fetch('/api/settings')
-        if (!res.ok) return
+    fetchConfiguration()
+  }, [])
+
+  const fetchConfiguration = async () => {
+    try {
+      setLoading(true)
+      
+      // Fetch form fields
+      const fieldsRes = await fetch('/api/form-fields')
+      if (fieldsRes.ok) {
+        const fields = await fieldsRes.json()
+        const enabledFields = fields.filter((f: FormField) => f.enabled)
+        setFormFields(enabledFields)
         
-        const settings = await res.json()
-        
+        // Initialize form data
+        const initialData: Record<string, string> = {}
+        enabledFields.forEach((field: FormField) => {
+          initialData[field.fieldName] = ''
+        })
+        setFormData(initialData)
+      }
+      
+      // Fetch WhatsApp settings
+      const settingsRes = await fetch('/api/settings')
+      if (settingsRes.ok) {
+        const settings = await settingsRes.json()
         if (settings.whatsapp_number) {
           setWhatsappNumber(settings.whatsapp_number.value)
         }
         if (settings.whatsapp_template) {
           setWhatsappTemplate(settings.whatsapp_template.value)
         }
-      } catch (error) {
-        console.error('Error fetching settings:', error)
       }
+    } catch (error) {
+      console.error('Error fetching configuration:', error)
+      toast.error('Gagal memuat form. Silakan refresh halaman.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {}
+    
+    formFields.forEach(field => {
+      if (field.required && !formData[field.fieldName]?.trim()) {
+        newErrors[field.fieldName] = `${field.label} harus diisi`
+      }
+      
+      // Validate email
+      if (field.fieldType === 'email' && formData[field.fieldName]) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(formData[field.fieldName])) {
+          newErrors[field.fieldName] = 'Email tidak valid'
+        }
+      }
+      
+      // Validate phone
+      if (field.fieldType === 'tel' && formData[field.fieldName]) {
+        if (formData[field.fieldName].length < 10) {
+          newErrors[field.fieldName] = 'Nomor telepon minimal 10 digit'
+        }
+      }
+    })
+    
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) {
+      toast.error('Mohon lengkapi form dengan benar')
+      return
     }
     
-    fetchSettings()
-  }, [])
-
-  const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true)
     
     try {
-      // Simpan ke database (opsional)
-      // await fetch('/api/registrations', {
-      //   method: 'POST',
-      //   body: JSON.stringify(values),
-      // })
-
-      // Buat pesan WhatsApp menggunakan template dari database
-      let whatsappMessage = whatsappTemplate || `
-*PENDAFTARAN BARU - Zivana Montessori School*
-
-*Nama Anak:* ${values.childName}
-*Nama Orang Tua:* ${values.parentName}
-*Email:* ${values.email}
-*Nomor Telepon:* ${values.phone}
-${values.address ? `*Alamat:* ${values.address}` : ''}
-${values.message ? `*Pesan:* ${values.message}` : ''}
-
-Terima kasih telah mendaftar di Zivana Montessori School!
-      `.trim()
-
-      // Replace placeholders dengan data form
-      whatsappMessage = whatsappMessage
-        .replace('{childName}', values.childName)
-        .replace('{parentName}', values.parentName)
-        .replace('{email}', values.email)
-        .replace('{phone}', values.phone)
-        .replace('{address}', values.address ? `*Alamat:* ${values.address}` : '')
-        .replace('{message}', values.message ? `*Pesan:* ${values.message}` : '')
-        .trim()
-
-      const encodedMessage = encodeURIComponent(whatsappMessage)
+      // Generate WhatsApp message
+      let message = whatsappTemplate || '*PENDAFTARAN BARU - Zivana Montessori School*\n\n'
+      
+      formFields.forEach(field => {
+        const value = formData[field.fieldName] || ''
+        const placeholder = `{${field.fieldName}}`
+        
+        if (message.includes(placeholder)) {
+          // Replace placeholder
+          message = message.replaceAll(placeholder, value || '-')
+        } else if (value) {
+          // Add field if not in template
+          message += `*${field.label}:* ${value}\n`
+        }
+      })
+      
+      message += '\n\nTerima kasih telah mendaftar di Zivana Montessori School!'
+      
+      // Open WhatsApp
+      const encodedMessage = encodeURIComponent(message.trim())
       const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`
-
-      // Redirect ke WhatsApp
       window.open(whatsappUrl, '_blank')
       
       setIsSuccess(true)
-      form.reset()
+      
+      // Reset form
+      const resetData: Record<string, string> = {}
+      formFields.forEach(field => {
+        resetData[field.fieldName] = ''
+      })
+      setFormData(resetData)
     } catch (error) {
       console.error('Error submitting form:', error)
+      toast.error('Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleInputChange = (fieldName: string, value: string) => {
+    setFormData(prev => ({ ...prev, [fieldName]: value }))
+    // Clear error when user types
+    if (errors[fieldName]) {
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[fieldName]
+        return newErrors
+      })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col">
+        <section className="bg-muted py-16">
+          <div className="container">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Pendaftaran</h1>
+            <p className="text-lg text-muted-foreground max-w-2xl">
+              Daftarkan anak Anda sekarang dan berikan pendidikan terbaik sejak dini
+            </p>
+          </div>
+        </section>
+        <section className="py-16">
+          <div className="container flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </section>
+      </div>
+    )
   }
 
   return (
@@ -179,120 +241,49 @@ Terima kasih telah mendaftar di Zivana Montessori School!
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    {/* Nama Anak */}
-                    <FormField
-                      control={form.control}
-                      name="childName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nama Anak *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Masukkan nama lengkap anak" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Nama Orang Tua */}
-                    <FormField
-                      control={form.control}
-                      name="parentName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nama Orang Tua *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Masukkan nama lengkap orang tua" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Email */}
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email *</FormLabel>
-                          <FormControl>
-                            <Input type="email" placeholder="contoh@email.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Nomor Telepon */}
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nomor Telepon/WhatsApp *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="08123456789" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Nomor yang dapat dihubungi via WhatsApp
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Alamat */}
-                    <FormField
-                      control={form.control}
-                      name="address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Alamat</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Masukkan alamat lengkap (opsional)" 
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Pesan */}
-                    <FormField
-                      control={form.control}
-                      name="message"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Pesan/Pertanyaan</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Ada pertanyaan atau informasi tambahan? (opsional)" 
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Submit Button */}
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Memproses...
-                        </>
+                <form onSubmit={onSubmit} className="space-y-6">
+                  {formFields.map((field) => (
+                    <div key={field.id} className="space-y-2">
+                      <Label htmlFor={field.fieldName}>
+                        {field.label} {field.required && <span className="text-red-500">*</span>}
+                      </Label>
+                      
+                      {field.fieldType === 'textarea' ? (
+                        <Textarea
+                          id={field.fieldName}
+                          value={formData[field.fieldName] || ''}
+                          onChange={(e) => handleInputChange(field.fieldName, e.target.value)}
+                          placeholder={field.placeholder || ''}
+                          rows={4}
+                        />
                       ) : (
-                        'Kirim Pendaftaran'
+                        <Input
+                          id={field.fieldName}
+                          type={field.fieldType}
+                          value={formData[field.fieldName] || ''}
+                          onChange={(e) => handleInputChange(field.fieldName, e.target.value)}
+                          placeholder={field.placeholder || ''}
+                        />
                       )}
-                    </Button>
-                  </form>
-                </Form>
+                      
+                      {errors[field.fieldName] && (
+                        <p className="text-sm text-red-500">{errors[field.fieldName]}</p>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Submit Button */}
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Memproses...
+                      </>
+                    ) : (
+                      'Kirim Pendaftaran'
+                    )}
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           )}

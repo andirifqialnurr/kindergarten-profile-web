@@ -4,10 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build && node scripts/post-build.js",
+    "build:standalone": "prisma generate && next build && node scripts/post-build.js",
     "start": "next start -p 3001",
+    "start:standalone": "node .next/standalone/server.js",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

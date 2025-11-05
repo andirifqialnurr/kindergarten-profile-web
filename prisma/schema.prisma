@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -114,4 +114,19 @@ model Settings {
   value                 String
   description           String?
   updatedAt             DateTime @updatedAt
+}
+
+// Model untuk Form Field Configuration
+model FormField {
+  id          String   @id @default(cuid())
+  fieldName   String   @unique // childName, parentName, email, phone, address, message, custom
+  label       String   // Label yang ditampilkan di form
+  placeholder String?  // Placeholder text
+  fieldType   String   // text, email, tel, textarea, select
+  required    Boolean  @default(true)
+  enabled     Boolean  @default(true)
+  order       Int      @default(0)
+  options     String?  // JSON string untuk select options
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
